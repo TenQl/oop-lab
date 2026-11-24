@@ -109,6 +109,7 @@ namespace NetworkSim.Model
             _nodes.Add(firewall);
             _nodes.Add(appServer);
             _nodes.Add(database);
+            SubscribeToDescendantEvents(firewall, appServer, database);
 
             ClientSide.SetClient(Client);
             ClientSide.SetEndUser(EndUser);
@@ -231,6 +232,38 @@ namespace NetworkSim.Model
             }
         }
 
+        /// <summary>
+        /// Подписывает мир на собственные события наследников ProcessingNode.
+        /// Каждое событие объявлено в своём классе-наследнике и имеет свой
+        /// делегат; подписка записана явно, через new ...Handler.
+        /// </summary>
+        private void SubscribeToDescendantEvents(FirewallNode firewall,
+                                                  AppServerNode appServer,
+                                                  DatabaseNode database)
+        {
+            firewall.PacketBlocked += new PacketBlockedHandler(OnFirewallBlocked);
+            appServer.PacketHandled += new PacketHandledHandler(OnAppServerHandled);
+            database.OutageOccurred += new OutageOccurredHandler(OnDatabaseOutage);
+        }
+
+        // Обработчик события наследника: брандмауэр заблокировал пакет.
+        private void OnFirewallBlocked(object sender, NodeCounterEventArgs e)
+        {
+            Logger.Log(e.Node.Name, "всего заблокировано пакетов: " + e.Count);
+        }
+
+        // Обработчик события наследника: сервер приложений обработал задачу.
+        private void OnAppServerHandled(object sender, NodeCounterEventArgs e)
+        {
+            Logger.Log(e.Node.Name, "всего обработано задач: " + e.Count);
+        }
+
+        // Обработчик события наследника: база данных отказала.
+        private void OnDatabaseOutage(object sender, NodeCounterEventArgs e)
+        {
+            Logger.Log(e.Node.Name, "всего отказов узла: " + e.Count);
+        }
+
         // Подписывает журнал на события всех объектов: объекты не знают
         // друг о друге, наблюдатель просто слушает их события.
         private void WireLogger()
@@ -265,40 +298,19 @@ namespace NetworkSim.Model
 
             foreach (ProcessingNode node in _nodes)
             {
-                node.ProcessingCompleted += (s, e) =>
-                {
-                    string text = "пакет #" + e.Packet.Id + " (попытка " +
-                                  e.Packet.Attempt + ") обработан";
-                    AppServerNode appServer = e.Node as AppServerNode;
-                    if (appServer != null)
-                    {
-                        text += " (всего обработано: " + appServer.HandledCount + ")";
-                    }
-                    Logger.Log(e.Node.Name, text);
-                };
+                node.ProcessingCompleted += (s, e) => Logger.Log(e.Node.Name,
+                    "пакет #" + e.Packet.Id + " (попытка " + e.Packet.Attempt + ") обработан");
                 node.ProcessingFailed += (s, e) =>
                 {
                     if (e.Kind == FailureKind.InvalidData)
                     {
-                        string text = "ОШИБКА ДАННЫХ в пакете #" + e.Packet.Id +
-                                      " (попытка " + e.Packet.Attempt + "), пакет возвращён клиенту";
-                        FirewallNode firewall = e.Node as FirewallNode;
-                        if (firewall != null)
-                        {
-                            text += " (всего блокировок: " + firewall.BlockedCount + ")";
-                        }
-                        Logger.Log(e.Node.Name, text);
+                        Logger.Log(e.Node.Name, "ОШИБКА ДАННЫХ в пакете #" + e.Packet.Id +
+                            " (попытка " + e.Packet.Attempt + "), пакет возвращён клиенту");
                     }
                     else
                     {
-                        string text = "ОТКАЗ УЗЛА: пакет #" + e.Packet.Id +
-                                      " удерживается до ремонта";
-                        DatabaseNode database = e.Node as DatabaseNode;
-                        if (database != null)
-                        {
-                            text += " (всего отказов: " + database.OutageCount + ")";
-                        }
-                        Logger.Log(e.Node.Name, text);
+                        Logger.Log(e.Node.Name, "ОТКАЗ УЗЛА: пакет #" + e.Packet.Id +
+                            " удерживается до ремонта");
                     }
                 };
                 node.StatusChanged += (s, e) => Logger.Log(node.Name,

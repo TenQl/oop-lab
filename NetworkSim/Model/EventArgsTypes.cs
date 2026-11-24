@@ -50,6 +50,21 @@ namespace NetworkSim.Model
         }
     }
 
+    /// <summary>
+    /// Аргументы события узла с числовым счётчиком: сколько всего событий
+    /// данного вида произошло на узле (блокировок, обработок, отказов).
+    /// </summary>
+    public class NodeCounterEventArgs : NodeEventArgs
+    {
+        public int Count { get; }
+
+        public NodeCounterEventArgs(ProcessingNode node, Packet packet, int count)
+            : base(node, packet)
+        {
+            Count = count;
+        }
+    }
+
     /// <summary>Аргументы события «изменилось значение свойства».</summary>
     public class ValueChangedEventArgs<T> : EventArgs
     {

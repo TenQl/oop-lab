@@ -4,6 +4,12 @@ using System.Drawing;
 namespace NetworkSim.Model
 {
     /// <summary>
+    /// Делегат события «база данных отказала». Объявлен в классе-наследнике:
+    /// у наследника есть собственный делегат (пункт 14.7).
+    /// </summary>
+    public delegate void OutageOccurredHandler(object sender, NodeCounterEventArgs e);
+
+    /// <summary>
     /// База данных — узел, производный от ProcessingNode. Может полностью
     /// отказать (требуется ремонт администратором), причём вероятность отказа
     /// не зависит от номера попытки. Переопределяет Evaluate и Draw.
@@ -11,6 +17,7 @@ namespace NetworkSim.Model
     public class DatabaseNode : ProcessingNode
     {
         private int _outageCount;       // число отказов базы данных
+        private OutageOccurredHandler _outageOccurred;  // подписчики события OutageOccurred
 
         private static readonly Brush CylinderBrush = new SolidBrush(Color.FromArgb(72, 138, 120));
 
@@ -18,6 +25,16 @@ namespace NetworkSim.Model
         public int OutageCount
         {
             get { return _outageCount; }
+        }
+
+        /// <summary>
+        /// Событие: база данных отказала. Объявлено полностью, с явными
+        /// методами add и remove.
+        /// </summary>
+        public event OutageOccurredHandler OutageOccurred
+        {
+            add { _outageOccurred += value; }
+            remove { _outageOccurred -= value; }
         }
 
         /// <summary>Создаёт базу данных с заданными параметрами.</summary>
@@ -37,9 +54,17 @@ namespace NetworkSim.Model
             if (Random.Shared.NextDouble() < FailureProbability)
             {
                 _outageCount++;
+                // Логика и генерация события — в одном методе (пункт 14.7).
+                OnOutageOccurred(new NodeCounterEventArgs(this, packet, _outageCount));
                 return FailureKind.NodeOutage;
             }
             return FailureKind.None;
+        }
+
+        /// <summary>Вызывает событие OutageOccurred.</summary>
+        protected void OnOutageOccurred(NodeCounterEventArgs e)
+        {
+            _outageOccurred?.Invoke(this, e);
         }
 
         /// <summary>Рисует узел с пиктограммой цилиндра.</summary>

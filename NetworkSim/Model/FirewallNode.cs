@@ -5,6 +5,12 @@ using System.Drawing.Drawing2D;
 namespace NetworkSim.Model
 {
     /// <summary>
+    /// Делегат события «брандмауэр заблокировал пакет». Объявлен в классе-
+    /// наследнике: у наследника есть собственный делегат (пункт 14.7).
+    /// </summary>
+    public delegate void PacketBlockedHandler(object sender, NodeCounterEventArgs e);
+
+    /// <summary>
     /// Брандмауэр — узел, производный от ProcessingNode. Проверяет данные
     /// задачи; в строгом режиме вероятность блокировки удваивается.
     /// Переопределяет Evaluate и Draw базового класса.
@@ -12,6 +18,7 @@ namespace NetworkSim.Model
     public class FirewallNode : ProcessingNode
     {
         private int _blockedCount;      // число заблокированных пакетов
+        private PacketBlockedHandler _packetBlocked;    // подписчики события PacketBlocked
 
         private static readonly Brush ShieldBrush = new SolidBrush(Color.FromArgb(91, 129, 181));
 
@@ -22,6 +29,16 @@ namespace NetworkSim.Model
         public int BlockedCount
         {
             get { return _blockedCount; }
+        }
+
+        /// <summary>
+        /// Событие: брандмауэр заблокировал пакет. Объявлено полностью,
+        /// с явными методами add и remove.
+        /// </summary>
+        public event PacketBlockedHandler PacketBlocked
+        {
+            add { _packetBlocked += value; }
+            remove { _packetBlocked -= value; }
         }
 
         /// <summary>Создаёт брандмауэр с заданными параметрами.</summary>
@@ -46,9 +63,17 @@ namespace NetworkSim.Model
             if (Random.Shared.NextDouble() < p)
             {
                 _blockedCount++;
+                // Логика и генерация события — в одном методе (пункт 14.7).
+                OnPacketBlocked(new NodeCounterEventArgs(this, packet, _blockedCount));
                 return FailureKind.InvalidData;
             }
             return FailureKind.None;
+        }
+
+        /// <summary>Вызывает событие PacketBlocked.</summary>
+        protected void OnPacketBlocked(NodeCounterEventArgs e)
+        {
+            _packetBlocked?.Invoke(this, e);
         }
 
         /// <summary>Рисует узел с пиктограммой щита.</summary>

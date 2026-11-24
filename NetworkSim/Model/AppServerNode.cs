@@ -5,6 +5,12 @@ using System.Drawing.Drawing2D;
 namespace NetworkSim.Model
 {
     /// <summary>
+    /// Делегат события «сервер приложений обработал задачу». Объявлен
+    /// в классе-наследнике: у наследника есть собственный делегат.
+    /// </summary>
+    public delegate void PacketHandledHandler(object sender, NodeCounterEventArgs e);
+
+    /// <summary>
     /// Сервер приложений — узел, производный от ProcessingNode. Вероятность
     /// ошибки данных растёт с нагрузкой (длиной очереди пакетов).
     /// Переопределяет Evaluate, OnProcessingCompleted и Draw базового класса.
@@ -12,6 +18,7 @@ namespace NetworkSim.Model
     public class AppServerNode : ProcessingNode
     {
         private int _handledCount;      // число успешно обработанных задач
+        private PacketHandledHandler _packetHandled;    // подписчики события PacketHandled
 
         private static readonly Brush GearBrush = new SolidBrush(Color.FromArgb(120, 96, 156));
         private static readonly Brush HubBrush = new SolidBrush(Color.White);
@@ -20,6 +27,16 @@ namespace NetworkSim.Model
         public int HandledCount
         {
             get { return _handledCount; }
+        }
+
+        /// <summary>
+        /// Событие: сервер приложений успешно обработал задачу. Объявлено
+        /// полностью, с явными методами add и remove.
+        /// </summary>
+        public event PacketHandledHandler PacketHandled
+        {
+            add { _packetHandled += value; }
+            remove { _packetHandled -= value; }
         }
 
         /// <summary>Создаёт сервер приложений с заданными параметрами.</summary>
@@ -46,11 +63,19 @@ namespace NetworkSim.Model
                 : FailureKind.None;
         }
 
-        /// <summary>Учитывает успешно обработанную задачу.</summary>
+        /// <summary>Учитывает обработанную задачу и сообщает о ней событием.</summary>
         protected override void OnProcessingCompleted(NodeEventArgs e)
         {
             _handledCount++;
+            // Логика и генерация события — в одном методе (пункт 14.7).
+            OnPacketHandled(new NodeCounterEventArgs(this, e.Packet, _handledCount));
             base.OnProcessingCompleted(e);
+        }
+
+        /// <summary>Вызывает событие PacketHandled.</summary>
+        protected void OnPacketHandled(NodeCounterEventArgs e)
+        {
+            _packetHandled?.Invoke(this, e);
         }
 
         /// <summary>Рисует узел с пиктограммой шестерёнки.</summary>
